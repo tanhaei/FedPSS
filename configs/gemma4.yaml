@@ -1,0 +1,28 @@
+seed: 42
+experiment:
+  n_patients: 240
+  n_hospitals: 5
+  n_rounds: 5
+  local_epochs: 2
+  batch_size: 16
+  learning_rate: 0.001
+  top_k: 10
+  non_iid_strength: 0.8
+model:
+  static_dim: 6
+  temporal_dim: 5
+  code_vocab_size: 64
+  note_dim: 1024
+  hidden_dim: 128
+  embedding_dim: 64
+llm:
+  backend: gemma4
+  model_id: google/gemma-4-E2B-it
+  max_length: 512
+  batch_size: 2
+  device_map: auto
+  dtype: auto
+privacy:
+  enabled: true
+  clip_norm: 1.0
+  noise_multiplier: 0.01

@@ -1,0 +1,76 @@
+{
+  "config": {
+    "seed": 42,
+    "experiment": {
+      "n_patients": 24,
+      "n_hospitals": 3,
+      "n_rounds": 1,
+      "local_epochs": 1,
+      "batch_size": 12,
+      "learning_rate": 0.003,
+      "top_k": 5,
+      "non_iid_strength": 0.7
+    },
+    "model": {
+      "static_dim": 6,
+      "temporal_dim": 5,
+      "code_vocab_size": 32,
+      "note_dim": 64,
+      "hidden_dim": 48,
+      "embedding_dim": 32
+    },
+    "llm": {
+      "backend": "mock",
+      "model_id": "mock-note-encoder",
+      "max_length": 256
+    },
+    "privacy": {
+      "enabled": true,
+      "clip_norm": 1.0,
+      "noise_multiplier": 0.0
+    }
+  },
+  "n_patients": 24,
+  "n_hospitals": 3,
+  "top_k": 5,
+  "metrics": {
+    "local": {
+      "precision@5": 0.9333333333333332,
+      "recall@5": 1.0,
+      "ndcg@5": 1.0,
+      "mrr": 1.0
+    },
+    "centralized": {
+      "precision@5": 0.8500000000000001,
+      "recall@5": 0.888888888888889,
+      "ndcg@5": 0.9878276375131078,
+      "mrr": 1.0
+    },
+    "federated": {
+      "precision@5": 0.8083333333333332,
+      "recall@5": 0.8527777777777779,
+      "ndcg@5": 0.9048506237249159,
+      "mrr": 0.9270833333333334
+    },
+    "rounds": [
+      {
+        "precision@5": 0.8083333333333332,
+        "recall@5": 0.8527777777777779,
+        "ndcg@5": 0.9048506237249159,
+        "mrr": 0.9270833333333334
+      }
+    ]
+  },
+  "attention_mean": [
+    0.2502910792827606,
+    0.24996282160282135,
+    0.24984996020793915,
+    0.24989616870880127
+  ],
+  "modalities": [
+    "static",
+    "temporal",
+    "codes",
+    "notes"
+  ]
+}

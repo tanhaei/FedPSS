@@ -1,0 +1,25 @@
+seed: 42
+experiment:
+  n_patients: 48
+  n_hospitals: 3
+  n_rounds: 1
+  local_epochs: 1
+  batch_size: 16
+  learning_rate: 0.003
+  top_k: 5
+  non_iid_strength: 0.7
+model:
+  static_dim: 6
+  temporal_dim: 5
+  code_vocab_size: 32
+  note_dim: 64
+  hidden_dim: 48
+  embedding_dim: 32
+llm:
+  backend: mock
+  model_id: mock-note-encoder
+  max_length: 256
+privacy:
+  enabled: true
+  clip_norm: 1.0
+  noise_multiplier: 0.0

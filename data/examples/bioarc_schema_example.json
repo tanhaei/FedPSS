@@ -1,0 +1,9 @@
+{
+  "patient_id": "P0001",
+  "hospital_id": "hospital_a",
+  "phenotype": "glaucoma",
+  "static": [0.73, 1.0, 0.0, 0.42, 0.61, 0.15],
+  "temporal": [[0.10, 0.20, 0.00, 0.30, 0.40], [0.20, 0.10, 0.10, 0.40, 0.50]],
+  "codes": [3, 9, 15],
+  "note": "Code-switched Persian-English note; e.g., glaucoma follow-up with IOP trend and medication response."
+}
