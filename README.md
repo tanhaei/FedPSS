@@ -161,15 +161,6 @@ The default script focuses on federated training and global retrieval evaluation
 
 The privacy layer includes update clipping and Gaussian perturbation. This is an experimental DP-like mechanism and should be replaced with a formal accountant for production-grade privacy guarantees. Raw clinical records are never sent to the federated server in this implementation.
 
-## Article figure generation
-
-To regenerate manuscript-style PDF figures from a metrics JSON file:
-
-```bash
-python scripts/plot_article_figures.py --metrics outputs/test_run/metrics.json --outdir outputs/figures
-```
-
-If no metrics file is provided, the script generates placeholder figures with `[TBD]`-style synthetic values for layout validation.
 
 ## Test status
 
