@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "fedpss-gemma4"
-version = "0.1.0"
-description = "Federated patient similarity search over temporal multimodal clinical records with Gemma 4 note representations."
+name = "fedpss"
+version = "0.2.0"
+description = "Privacy-governed federated patient-record similarity retrieval with multilingual structured descriptor mapping."
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [{name = "Mohammad Tanhaei"}]
@@ -21,7 +21,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-llm = ["transformers>=4.50", "accelerate>=0.26"]
+semantic = ["transformers>=4.50", "accelerate>=0.26"]
 test = ["pytest>=7.0"]
 
 [tool.setuptools.packages.find]

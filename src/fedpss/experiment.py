@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import copy
 import json
 from pathlib import Path
 
@@ -10,7 +9,7 @@ from torch.utils.data import DataLoader
 
 from fedpss.data import (
     PatientDataset,
-    attach_note_embeddings,
+    attach_semantic_embeddings,
     collate_batch,
     generate_synthetic_bioarc,
     load_jsonl,
@@ -19,7 +18,7 @@ from fedpss.data import (
 )
 from fedpss.federated.client import FederatedClient
 from fedpss.federated.server import FederatedServer
-from fedpss.llm.gemma4 import build_note_encoder
+from fedpss.llm.gemma4 import build_semantic_mapper
 from fedpss.metrics import evaluate_topk
 from fedpss.models.multimodal import build_model
 from fedpss.training import embed_dataset, train_one_epoch
@@ -43,22 +42,36 @@ def _build_records(cfg: dict, bioarc_jsonl: str | None = None):
     return records
 
 
+def _semantic_cfg(cfg: dict) -> dict:
+    model_cfg = cfg["model"]
+    mapper_cfg = dict(cfg.get("semantic_mapper", cfg.get("llm", {})))
+    mapper_cfg.setdefault("semantic_dim", model_cfg.get("semantic_dim", model_cfg.get("note_dim", 64)))
+    return mapper_cfg
+
+
+def _dataset(records, model_cfg: dict) -> PatientDataset:
+    return PatientDataset(
+        records,
+        int(model_cfg["code_vocab_size"]),
+        semantic_dim=int(model_cfg.get("semantic_dim", model_cfg.get("note_dim", 64))),
+    )
+
+
 def run_experiment(cfg: dict, outdir: str | Path, bioarc_jsonl: str | None = None, device: str = "cpu") -> dict:
     set_seed(int(cfg.get("seed", 42)))
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     model_cfg = cfg["model"]
     exp_cfg = cfg["experiment"]
-    llm_cfg = dict(cfg.get("llm", {}))
-    llm_cfg.setdefault("note_dim", model_cfg["note_dim"])
-    encoder = build_note_encoder(llm_cfg)
+    mapper_cfg = _semantic_cfg(cfg)
+    mapper = build_semantic_mapper(mapper_cfg)
     records = _build_records(cfg, bioarc_jsonl=bioarc_jsonl)
-    attach_note_embeddings(records, encoder, batch_size=int(llm_cfg.get("batch_size", 16)))
+    attach_semantic_embeddings(records, mapper, batch_size=int(mapper_cfg.get("batch_size", 16)))
 
-    full_ds = PatientDataset(records, int(model_cfg["code_vocab_size"]), int(model_cfg["note_dim"]))
+    full_ds = _dataset(records, model_cfg)
     full_loader = DataLoader(full_ds, batch_size=int(exp_cfg["batch_size"]), shuffle=False, collate_fn=collate_batch)
 
-    # Centralized upper-bound style model.
+    # Centralized upper-bound style model. This is not a privacy-governed deployment mode.
     centralized = build_model(model_cfg).to(device)
     optimizer = torch.optim.Adam(centralized.parameters(), lr=float(exp_cfg["learning_rate"]))
     train_loader = DataLoader(full_ds, batch_size=int(exp_cfg["batch_size"]), shuffle=True, collate_fn=collate_batch)
@@ -68,12 +81,12 @@ def run_experiment(cfg: dict, outdir: str | Path, bioarc_jsonl: str | None = Non
     top_k = int(exp_cfg.get("top_k", 10))
     central_metrics = evaluate_topk(central_emb["embedding"], central_emb["patient_id"], central_emb["label"], top_k=top_k)
 
-    # Federated model.
+    # Federated model with local training and weighted FedAvg aggregation.
     global_model = build_model(model_cfg).to(device)
     server = FederatedServer(global_model)
     clients = []
     for hospital, rows in split_by_hospital(records).items():
-        ds = PatientDataset(rows, int(model_cfg["code_vocab_size"]), int(model_cfg["note_dim"]))
+        ds = _dataset(rows, model_cfg)
         clients.append(
             FederatedClient(
                 hospital,
@@ -85,7 +98,7 @@ def run_experiment(cfg: dict, outdir: str | Path, bioarc_jsonl: str | None = Non
             )
         )
     round_metrics = []
-    for round_idx in range(int(exp_cfg["n_rounds"])):
+    for _round_idx in range(int(exp_cfg["n_rounds"])):
         updates = []
         for client in clients:
             delta = client.fit(global_model, privacy_cfg=cfg.get("privacy", {}))
@@ -97,11 +110,11 @@ def run_experiment(cfg: dict, outdir: str | Path, bioarc_jsonl: str | None = Non
     final_emb = embed_dataset(global_model, full_loader, device=device)
     federated_metrics = evaluate_topk(final_emb["embedding"], final_emb["patient_id"], final_emb["label"], top_k=top_k)
 
-    # Local-only baseline: evaluate each site with the global initialization trained only locally.
+    # Local-only baseline: each site trains and retrieves only on its local records.
     local_scores = []
-    for hospital, rows in split_by_hospital(records).items():
+    for _hospital, rows in split_by_hospital(records).items():
         local_model = build_model(model_cfg).to(device)
-        ds = PatientDataset(rows, int(model_cfg["code_vocab_size"]), int(model_cfg["note_dim"]))
+        ds = _dataset(rows, model_cfg)
         loader = DataLoader(ds, batch_size=int(exp_cfg["batch_size"]), shuffle=True, collate_fn=collate_batch)
         opt = torch.optim.Adam(local_model.parameters(), lr=float(exp_cfg["learning_rate"]))
         for _ in range(max(1, int(exp_cfg["local_epochs"]))):
@@ -127,7 +140,7 @@ def run_experiment(cfg: dict, outdir: str | Path, bioarc_jsonl: str | None = Non
             "rounds": round_metrics,
         },
         "attention_mean": final_emb["attention"].mean(axis=0).tolist(),
-        "modalities": ["static", "temporal", "codes", "notes"],
+        "modalities": ["static", "temporal", "codes", "semantic_map"],
     }
     with open(outdir / "metrics.json", "w", encoding="utf-8") as f:
         json.dump(result, f, indent=2)

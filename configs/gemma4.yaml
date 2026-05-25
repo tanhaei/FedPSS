@@ -1,3 +1,5 @@
+# Backward-compatible filename; this configuration uses a Gemma-family semantic mapper
+# for structured descriptors, not a raw-note encoder.
 seed: 42
 experiment:
   n_patients: 240
@@ -12,16 +14,19 @@ model:
   static_dim: 6
   temporal_dim: 5
   code_vocab_size: 64
-  note_dim: 1024
+  semantic_dim: 1024
   hidden_dim: 128
   embedding_dim: 64
-llm:
-  backend: gemma4
-  model_id: google/gemma-4-E2B-it
-  max_length: 512
+semantic_mapper:
+  backend: gemma_lora
+  model_id: google/gemma-2-2b-it
+  max_length: 128
   batch_size: 2
   device_map: auto
   dtype: auto
+  cache_descriptors: true
+  lora_rank: 8
+  lora_alpha: 16
 privacy:
   enabled: true
   clip_norm: 1.0

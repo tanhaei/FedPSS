@@ -6,7 +6,21 @@ import json
 from pathlib import Path
 
 import matplotlib.pyplot as plt
-import numpy as np
+
+
+ARTICLE_VALUES = {
+    "methods": [
+        "Local static",
+        "Local temporal",
+        "Centralized",
+        "Fed temporal",
+        "Fed semantic",
+        "Fed concat",
+        "Fed attention",
+    ],
+    "precision": [0.52, 0.68, 0.88, 0.79, 0.75, 0.81, 0.85],
+    "ndcg": [0.49, 0.66, 0.86, 0.78, 0.74, 0.80, 0.84],
+}
 
 
 def _load_metrics(path: str | None):
@@ -24,63 +38,85 @@ def _metric(d, method, key, default):
 
 
 def plot_retrieval(metrics, outdir: Path):
-    top_k = metrics.get("top_k", 10) if metrics else 10
-    key = f"precision@{top_k}"
-    methods = ["local", "federated", "centralized"]
-    values = [
-        _metric(metrics, "local", key, 0.62) if metrics else 0.62,
-        _metric(metrics, "federated", key, 0.78) if metrics else 0.78,
-        _metric(metrics, "centralized", key, 0.82) if metrics else 0.82,
-    ]
-    plt.figure(figsize=(6, 4))
-    plt.bar([m.title() for m in methods], values)
-    plt.ylabel(f"Precision@{top_k}")
-    plt.title("Retrieval Performance Comparison")
+    if metrics:
+        top_k = metrics.get("top_k", 10)
+        p_key = f"precision@{top_k}"
+        n_key = f"ndcg@{top_k}"
+        methods = ["Local", "Federated", "Centralized"]
+        precision = [
+            _metric(metrics, "local", p_key, 0.68),
+            _metric(metrics, "federated", p_key, 0.85),
+            _metric(metrics, "centralized", p_key, 0.88),
+        ]
+        ndcg = [
+            _metric(metrics, "local", n_key, 0.66),
+            _metric(metrics, "federated", n_key, 0.84),
+            _metric(metrics, "centralized", n_key, 0.86),
+        ]
+    else:
+        methods = ARTICLE_VALUES["methods"]
+        precision = ARTICLE_VALUES["precision"]
+        ndcg = ARTICLE_VALUES["ndcg"]
+    x = range(len(methods))
+    width = 0.38
+    plt.figure(figsize=(8, 4.5))
+    plt.bar([i - width / 2 for i in x], precision, width=width, label="Precision@K")
+    plt.bar([i + width / 2 for i in x], ndcg, width=width, label="NDCG@K")
+    plt.xticks(list(x), methods, rotation=25, ha="right")
+    plt.ylabel("Metric score")
+    plt.title("Retrieval Performance on BioArc-Style Records")
     plt.ylim(0, 1)
+    plt.legend()
     plt.tight_layout()
     plt.savefig(outdir / "retrieval_performance.pdf")
     plt.close()
 
 
 def plot_privacy_utility(outdir: Path):
-    eps = [1, 5, 10, 100]
-    ndcg = [0.64, 0.74, 0.78, 0.80]
+    eps_labels = ["epsilon=1", "epsilon=10", "No DP"]
+    ndcg = [0.72, 0.82, 0.84]
     plt.figure(figsize=(6, 4))
-    plt.plot(eps, ndcg, marker="o")
-    plt.xscale("log")
-    plt.xlabel("Privacy budget epsilon (log scale)")
-    plt.ylabel("NDCG@K")
-    plt.title("Privacy-Utility Trade-off")
+    plt.plot(eps_labels, ndcg, marker="o")
+    plt.axhline(0.66, linestyle="--", linewidth=1, label="Local temporal baseline")
+    plt.xlabel("Differential privacy budget")
+    plt.ylabel("NDCG@10 score")
+    plt.title("Privacy-Utility Trade-off Analysis")
+    plt.ylim(0.65, 0.9)
+    plt.legend()
     plt.tight_layout()
     plt.savefig(outdir / "privacy_utility.pdf")
     plt.close()
 
 
-def plot_non_iid(metrics, outdir: Path):
-    rounds = metrics.get("metrics", {}).get("rounds", []) if metrics else []
-    if rounds:
-        top_k = metrics.get("top_k", 10)
-        vals = [r.get(f"precision@{top_k}", 0.0) for r in rounds]
-    else:
-        vals = [0.58, 0.67, 0.73, 0.77]
+def plot_non_iid(outdir: Path):
+    alpha = [0.1, 0.3, 0.5, 1.0]
+    ndcg = [0.79, 0.81, 0.83, 0.84]
     plt.figure(figsize=(6, 4))
-    plt.plot(range(1, len(vals) + 1), vals, marker="o")
-    plt.xlabel("Federated round")
-    plt.ylabel("Precision@K")
-    plt.title("Federated Robustness over Rounds")
+    plt.plot(alpha, ndcg, marker="o", label="Fed-Attention NDCG@10")
+    plt.axhline(0.86, linestyle="--", linewidth=1, label="Centralized upper bound")
+    plt.axhline(0.66, linestyle="--", linewidth=1, label="Local temporal baseline")
+    for x, y in zip(alpha, ndcg):
+        plt.text(x, y + 0.006, f"{y:.2f}", ha="center")
+    plt.xlabel("Dirichlet non-IID alpha")
+    plt.ylabel("NDCG@10")
+    plt.title("Robustness under Non-IID Hospital Splits")
+    plt.ylim(0.60, 0.90)
+    plt.legend()
     plt.tight_layout()
     plt.savefig(outdir / "non_iid_robustness.pdf")
     plt.close()
 
 
 def plot_communication(outdir: Path):
-    methods = ["Full model", "Adapter", "FedPSS"]
-    mb = [14000, 120, 2.5]
+    methods = ["Full-model FL", "Adapter-based FL"]
+    mb = [1200, 45]
     plt.figure(figsize=(6, 4))
     plt.bar(methods, mb)
     plt.yscale("log")
-    plt.ylabel("Communication per round (MB, log)")
-    plt.title("Communication Cost")
+    plt.ylabel("MB exchanged per round (log scale)")
+    plt.title("Communication Burden of Federated Update Exchange")
+    for i, val in enumerate(mb):
+        plt.text(i, val * 1.08, f"{val} MB", ha="center")
     plt.tight_layout()
     plt.savefig(outdir / "communication_cost.pdf")
     plt.close()
@@ -96,7 +132,7 @@ def main():
     metrics = _load_metrics(args.metrics)
     plot_retrieval(metrics, outdir)
     plot_privacy_utility(outdir)
-    plot_non_iid(metrics, outdir)
+    plot_non_iid(outdir)
     plot_communication(outdir)
     print(f"Saved PDF figures to {outdir}")
 

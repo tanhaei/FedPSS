@@ -1,348 +1,97 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/tanhaei/fedpss/schema/fedpss_config.schema.json",
+  "$id": "https://github.com/tanhaei/FedPSS/tree/main/schema/fedpss_config.schema.json",
   "title": "FedPSS Experiment Configuration Schema",
-  "description": "Non-private configuration schema for FedPSS federated patient-record retrieval experiments.",
+  "description": "Non-private configuration schema for FedPSS federated patient-record retrieval experiments. It mirrors the YAML configuration files used by the code.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "schema_version",
-    "federation",
-    "data",
-    "model",
-    "training",
-    "privacy",
-    "retrieval",
-    "evaluation"
-  ],
+  "required": ["seed", "experiment", "model", "semantic_mapper", "privacy"],
   "properties": {
-    "schema_version": {
-      "type": "string",
-      "const": "1.0.0"
-    },
-    "federation": {
+    "seed": {"type": "integer", "default": 42},
+    "experiment": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "num_clients",
-        "aggregation",
-        "rounds"
-      ],
+      "required": ["n_patients", "n_hospitals", "n_rounds", "local_epochs", "batch_size", "learning_rate", "top_k"],
       "properties": {
-        "num_clients": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 50
-        },
-        "aggregation": {
-          "type": "string",
-          "enum": [
-            "FedAvg",
-            "FedProx",
-            "FedAdam",
-            "Custom"
-          ],
-          "default": "FedAvg"
-        },
-        "rounds": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 100
-        },
-        "client_fraction": {
-          "type": "number",
-          "minimum": 0,
-          "maximum": 1,
-          "default": 1.0
-        },
+        "n_patients": {"type": "integer", "minimum": 1},
+        "n_hospitals": {"type": "integer", "minimum": 1, "default": 50},
+        "n_rounds": {"type": "integer", "minimum": 1, "default": 100},
+        "local_epochs": {"type": "integer", "minimum": 1},
+        "batch_size": {"type": "integer", "minimum": 1},
+        "learning_rate": {"type": "number", "exclusiveMinimum": 0},
+        "top_k": {"type": "integer", "minimum": 1, "default": 10},
+        "non_iid_strength": {"type": "number", "minimum": 0, "maximum": 1},
         "non_iid_setting": {
           "type": "string",
-          "enum": [
-            "natural_site_split",
-            "specialty_skew",
-            "dirichlet_label_skew",
-            "mixed"
-          ]
+          "enum": ["natural_site_split", "specialty_skew", "dirichlet_label_skew", "mixed"]
         },
-        "dirichlet_alpha": {
-          "type": [
-            "number",
-            "null"
-          ],
-          "minimum": 0
+        "dirichlet_alpha": {"type": ["number", "null"], "minimum": 0}
+      }
+    },
+    "model": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["static_dim", "temporal_dim", "code_vocab_size", "semantic_dim", "hidden_dim", "embedding_dim"],
+      "properties": {
+        "static_dim": {"type": "integer", "minimum": 1},
+        "temporal_dim": {"type": "integer", "minimum": 1},
+        "code_vocab_size": {"type": "integer", "minimum": 1},
+        "semantic_dim": {"type": "integer", "minimum": 1},
+        "hidden_dim": {"type": "integer", "minimum": 1},
+        "embedding_dim": {"type": "integer", "minimum": 1},
+        "temporal_encoder": {"type": "string", "enum": ["GRU", "LSTM", "TemporalTransformer"], "default": "GRU"},
+        "fusion": {"type": "string", "enum": ["attention", "concatenation", "mean_pooling"], "default": "attention"}
+      }
+    },
+    "semantic_mapper": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "model_id"],
+      "properties": {
+        "backend": {"type": "string", "enum": ["mock", "mock_semantic", "gemma_lora", "gemma"]},
+        "model_id": {"type": "string"},
+        "max_length": {"type": "integer", "minimum": 1, "default": 128},
+        "batch_size": {"type": "integer", "minimum": 1, "default": 16},
+        "device_map": {"type": "string", "default": "auto"},
+        "dtype": {"type": "string", "default": "auto"},
+        "cache_descriptors": {"type": "boolean", "default": true},
+        "lora_rank": {"type": ["integer", "null"], "minimum": 1},
+        "lora_alpha": {"type": ["number", "null"]}
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "clip_norm", "noise_multiplier"],
+      "properties": {
+        "enabled": {"type": "boolean", "default": true},
+        "clip_norm": {"type": "number", "minimum": 0, "default": 1.0},
+        "noise_multiplier": {"type": "number", "minimum": 0, "default": 0.5},
+        "epsilon": {"type": ["number", "string", "null"], "default": 10.0},
+        "delta": {"type": ["number", "string", "null"], "default": 1e-6},
+        "secure_aggregation": {"type": "boolean", "default": true},
+        "retrieval_governance": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": ["role_based_access", "audit_logging", "minimum_cohort_size", "repeated_query_monitoring", "index_isolation"]
+          }
         }
       }
     },
     "data": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "record_schema",
-        "record_count",
-        "time_representation"
-      ],
       "properties": {
-        "record_schema": {
-          "type": "string",
-          "default": "schema/bioarc_record.schema.json"
-        },
-        "record_count": {
-          "type": [
-            "integer",
-            "string"
-          ],
-          "description": "Total number of privacy-transformed records.",
-          "default": 15000000
-        },
-        "time_representation": {
-          "type": "string",
-          "enum": [
-            "relative_offsets",
-            "shifted_dates",
-            "coarse_periods"
-          ]
-        },
-        "raw_images": {
-          "type": "string",
-          "enum": [
-            "excluded",
-            "included",
-            "future_work"
-          ],
-          "default": "excluded"
-        },
-        "unstructured_notes": {
-          "type": "string",
-          "enum": [
-            "excluded",
-            "included",
-            "future_work"
-          ],
-          "default": "excluded"
-        },
+        "record_schema": {"type": "string", "default": "schema/bioarc_record.schema.json"},
+        "record_count": {"type": ["integer", "string"], "default": 15000000},
+        "raw_images": {"type": "string", "enum": ["excluded", "future_work"], "default": "excluded"},
+        "unstructured_notes": {"type": "string", "enum": ["excluded", "future_work"], "default": "excluded"},
         "augmentation": {
           "type": "array",
           "items": {
             "type": "string",
-            "enum": [
-              "temporal_masking",
-              "visit_subsampling",
-              "descriptor_dropout",
-              "contrastive_view_generation",
-              "none"
-            ]
-          }
-        }
-      }
-    },
-    "model": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "embedding_dim",
-        "temporal_encoder",
-        "fusion",
-        "semantic_mapper"
-      ],
-      "properties": {
-        "embedding_dim": {
-          "type": "integer",
-          "default": 512
-        },
-        "temporal_encoder": {
-          "type": "string",
-          "enum": [
-            "GRU",
-            "LSTM",
-            "TemporalTransformer",
-            "None"
-          ]
-        },
-        "categorical_encoder": {
-          "type": "string",
-          "enum": [
-            "embedding_table",
-            "sequence_embedding",
-            "multi_hot",
-            "none"
-          ]
-        },
-        "fusion": {
-          "type": "string",
-          "enum": [
-            "attention",
-            "concatenation",
-            "mean_pooling",
-            "none"
-          ]
-        },
-        "semantic_mapper": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "enabled",
-            "backbone"
-          ],
-          "properties": {
-            "enabled": {
-              "type": "boolean"
-            },
-            "backbone": {
-              "type": "string",
-              "enum": [
-                "Gemma-LoRA",
-                "ParsBERT",
-                "SINA-BERT",
-                "CompactMultilingual",
-                "CodeStringEmbedding",
-                "None"
-              ]
-            },
-            "lora_rank": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 1
-            },
-            "lora_alpha": {
-              "type": [
-                "number",
-                "null"
-              ]
-            },
-            "cache_descriptors": {
-              "type": "boolean",
-              "default": true
-            }
-          }
-        }
-      }
-    },
-    "training": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "local_epochs": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "batch_size": {
-          "type": "integer",
-          "minimum": 1
-        },
-        "optimizer": {
-          "type": "string",
-          "enum": [
-            "AdamW",
-            "Adam",
-            "SGD"
-          ]
-        },
-        "learning_rate": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        },
-        "lambda_reconstruction": {
-          "type": "number",
-          "minimum": 0
-        },
-        "lambda_alignment": {
-          "type": "number",
-          "minimum": 0
-        },
-        "lambda_regularization": {
-          "type": "number",
-          "minimum": 0
-        },
-        "temperature": {
-          "type": "number",
-          "exclusiveMinimum": 0
-        }
-      }
-    },
-    "privacy": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "secure_aggregation",
-        "differential_privacy"
-      ],
-      "properties": {
-        "secure_aggregation": {
-          "type": "boolean",
-          "default": true
-        },
-        "differential_privacy": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "enabled"
-          ],
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true
-            },
-            "epsilon": {
-              "type": [
-                "number",
-                "string",
-                "null"
-              ],
-              "description": "Privacy budget epsilon.",
-              "default": 10.0
-            },
-            "delta": {
-              "type": [
-                "number",
-                "string",
-                "null"
-              ],
-              "default": 1e-6
-            },
-            "clipping_norm": {
-              "type": [
-                "number",
-                "string",
-                "null"
-              ],
-              "default": 1.0
-            },
-            "noise_multiplier": {
-              "type": [
-                "number",
-                "string",
-                "null"
-              ],
-              "default": 0.5
-            },
-            "accountant": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "enum": [
-                "RDP",
-                "GDP",
-                "Moments",
-                null
-              ],
-              "default": "RDP"
-            }
-          }
-        },
-        "retrieval_governance": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "role_based_access",
-              "audit_logging",
-              "minimum_cohort_size",
-              "repeated_query_monitoring",
-              "index_isolation"
-            ]
+            "enum": ["temporal_masking", "visit_subsampling", "descriptor_dropout", "contrastive_view_generation", "time_window_jittering", "none"]
           }
         }
       }
@@ -350,44 +99,10 @@
     "retrieval": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "mode",
-        "top_k"
-      ],
       "properties": {
-        "mode": {
-          "type": "string",
-          "enum": [
-            "local_index",
-            "federated_candidate_request",
-            "regional_embedding_index"
-          ]
-        },
-        "top_k": {
-          "type": "integer",
-          "minimum": 1,
-          "default": 10
-        },
-        "ann_backend": {
-          "type": "string",
-          "enum": [
-            "Faiss_IndexIVFPQ",
-            "Faiss_HNSW",
-            "ScaNN",
-            "Exact",
-            "Other"
-          ],
-          "default": "Faiss_IndexIVFPQ"
-        },
-        "similarity": {
-          "type": "string",
-          "enum": [
-            "cosine",
-            "euclidean",
-            "dot_product"
-          ],
-          "default": "cosine"
-        }
+        "mode": {"type": "string", "enum": ["local_index", "federated_candidate_request", "regional_embedding_index"]},
+        "ann_backend": {"type": "string", "enum": ["Faiss_IndexIVFPQ", "Exact", "Other"], "default": "Faiss_IndexIVFPQ"},
+        "similarity": {"type": "string", "enum": ["cosine", "euclidean", "dot_product"], "default": "cosine"}
       }
     },
     "evaluation": {
@@ -396,73 +111,11 @@
       "properties": {
         "metrics": {
           "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "Precision@10",
-              "Recall@10",
-              "NDCG@10",
-              "MRR",
-              "Latency",
-              "CommunicationMB"
-            ]
-          }
-        },
-        "clinician_review": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true
-            },
-            "num_queries": {
-              "type": [
-                "integer",
-                "string"
-              ],
-              "default": 250
-            },
-            "num_reviewers": {
-              "type": [
-                "integer",
-                "string"
-              ],
-              "default": 5
-            },
-            "blinding": {
-              "type": [
-                "boolean",
-                "string"
-              ],
-              "default": true
-            },
-            "inter_rater_metric": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "enum": [
-                "CohenKappa",
-                "FleissKappa",
-                "KrippendorffAlpha",
-                null
-              ],
-              "default": "CohenKappa"
-            }
-          }
+          "items": {"type": "string", "enum": ["Precision@10", "Recall@10", "NDCG@10", "MRR", "Latency", "CommunicationMB"]}
         },
         "privacy_stress_tests": {
           "type": "array",
-          "items": {
-            "type": "string",
-            "enum": [
-              "membership_inference",
-              "gradient_inversion",
-              "retrieval_leakage",
-              "embedding_leakage"
-            ]
-          }
+          "items": {"type": "string", "enum": ["membership_inference", "gradient_inversion", "retrieval_leakage", "embedding_leakage", "rare_cohort_privacy"]}
         }
       }
     }

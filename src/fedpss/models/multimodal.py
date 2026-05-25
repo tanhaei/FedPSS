@@ -58,12 +58,18 @@ class CrossModalAttention(nn.Module):
 
 
 class PatientSimilarityModel(nn.Module):
+    """Temporal multimodal patient-record similarity model.
+
+    The fourth modality is a structured descriptor semantic embedding, not a
+    raw free-text note embedding.
+    """
+
     def __init__(
         self,
         static_dim: int,
         temporal_dim: int,
         code_vocab_size: int,
-        note_dim: int,
+        semantic_dim: int,
         hidden_dim: int = 128,
         embedding_dim: int = 64,
     ) -> None:
@@ -71,7 +77,7 @@ class PatientSimilarityModel(nn.Module):
         self.static_encoder = StaticEncoder(static_dim, hidden_dim)
         self.temporal_encoder = TemporalEncoder(temporal_dim, hidden_dim)
         self.code_encoder = CodeEncoder(code_vocab_size, hidden_dim)
-        self.note_encoder = nn.Sequential(nn.Linear(note_dim, hidden_dim), nn.ReLU())
+        self.semantic_encoder = nn.Sequential(nn.Linear(semantic_dim, hidden_dim), nn.ReLU())
         self.fusion = CrossModalAttention(hidden_dim)
         self.projection = nn.Sequential(
             nn.Linear(hidden_dim, hidden_dim),
@@ -83,19 +89,23 @@ class PatientSimilarityModel(nn.Module):
         z_static = self.static_encoder(batch["static"])
         z_temporal = self.temporal_encoder(batch["temporal"], batch["lengths"])
         z_codes = self.code_encoder(batch["codes"])
-        z_notes = self.note_encoder(batch["note_embedding"])
-        modalities = torch.stack([z_static, z_temporal, z_codes, z_notes], dim=1)
+        semantic_input = batch.get("semantic_embedding", batch.get("note_embedding"))
+        if semantic_input is None:
+            raise KeyError("batch must contain semantic_embedding")
+        z_semantic = self.semantic_encoder(semantic_input)
+        modalities = torch.stack([z_static, z_temporal, z_codes, z_semantic], dim=1)
         fused, attention = self.fusion(modalities)
         embedding = F.normalize(self.projection(fused), p=2, dim=-1)
         return embedding, attention
 
 
 def build_model(cfg: dict) -> PatientSimilarityModel:
+    semantic_dim = int(cfg.get("semantic_dim", cfg.get("note_dim", 64)))
     return PatientSimilarityModel(
         static_dim=int(cfg["static_dim"]),
         temporal_dim=int(cfg["temporal_dim"]),
         code_vocab_size=int(cfg["code_vocab_size"]),
-        note_dim=int(cfg["note_dim"]),
+        semantic_dim=semantic_dim,
         hidden_dim=int(cfg.get("hidden_dim", 128)),
         embedding_dim=int(cfg.get("embedding_dim", 64)),
     )

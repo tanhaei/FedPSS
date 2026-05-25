@@ -12,12 +12,12 @@ model:
   static_dim: 6
   temporal_dim: 5
   code_vocab_size: 32
-  note_dim: 64
+  semantic_dim: 64
   hidden_dim: 48
   embedding_dim: 32
-llm:
+semantic_mapper:
   backend: mock
-  model_id: mock-note-encoder
+  model_id: mock-semantic-mapper
   max_length: 256
 privacy:
   enabled: true

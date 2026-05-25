@@ -5,18 +5,20 @@ from typing import Sequence
 import numpy as np
 
 
-class Gemma4NoteEncoder:
-    """Frozen Gemma 4 text encoder for clinical notes.
+class GemmaSemanticMapper:
+    """Frozen Gemma-family encoder for structured clinical descriptors.
 
-    This class extracts mean-pooled hidden-state embeddings from a Gemma 4
-    checkpoint. It keeps Gemma frozen and returns note-level representations for
-    the downstream federated similarity model.
+    This class extracts mean-pooled hidden-state embeddings from a Gemma-family
+    checkpoint. It keeps the backbone frozen and returns descriptor-level
+    representations for the downstream federated retrieval model. The mapper is
+    not a diagnostic generator and is not intended for raw free-text note
+    interpretation.
     """
 
     def __init__(
         self,
-        model_id: str = "google/gemma-4-E2B-it",
-        max_length: int = 512,
+        model_id: str = "google/gemma-2-2b-it",
+        max_length: int = 128,
         device_map: str = "auto",
         dtype: str = "auto",
     ) -> None:
@@ -25,7 +27,7 @@ class Gemma4NoteEncoder:
             from transformers import AutoModel, AutoTokenizer
         except Exception as exc:  # pragma: no cover - optional dependency path
             raise ImportError(
-                "Gemma4NoteEncoder requires torch and transformers. Install with `pip install -r requirements.txt`."
+                "GemmaSemanticMapper requires torch and transformers. Install with `pip install -r requirements.txt`."
             ) from exc
 
         self.torch = torch
@@ -39,10 +41,10 @@ class Gemma4NoteEncoder:
         self.model = AutoModel.from_pretrained(model_id, **kwargs)
         self.model.eval()
 
-    def encode(self, texts: Sequence[str]) -> np.ndarray:  # pragma: no cover - too large for CI
+    def encode(self, descriptors: Sequence[str]) -> np.ndarray:  # pragma: no cover - too large for CI
         torch = self.torch
         inputs = self.tokenizer(
-            list(texts),
+            list(descriptors),
             padding=True,
             truncation=True,
             max_length=self.max_length,
@@ -62,17 +64,26 @@ class Gemma4NoteEncoder:
         return pooled.cpu().numpy().astype(np.float32)
 
 
-def build_note_encoder(cfg: dict):
-    backend = cfg.get("backend", "gemma4")
-    if backend == "mock":
-        from .mock import MockNoteEncoder
+# Backward-compatible alias for the original repository name.
+Gemma4NoteEncoder = GemmaSemanticMapper
 
-        return MockNoteEncoder(dim=int(cfg.get("note_dim", cfg.get("dim", 64))))
-    if backend == "gemma4":
-        return Gemma4NoteEncoder(
-            model_id=cfg.get("model_id", "google/gemma-4-E2B-it"),
-            max_length=int(cfg.get("max_length", 512)),
+
+def build_semantic_mapper(cfg: dict):
+    backend = cfg.get("backend", "gemma_lora")
+    if backend in {"mock", "mock_semantic"}:
+        from .mock import MockSemanticMapper
+
+        return MockSemanticMapper(dim=int(cfg.get("semantic_dim", cfg.get("note_dim", cfg.get("dim", 64)))))
+    if backend in {"gemma_lora", "gemma", "gemma4"}:
+        return GemmaSemanticMapper(
+            model_id=cfg.get("model_id", "google/gemma-2-2b-it"),
+            max_length=int(cfg.get("max_length", 128)),
             device_map=cfg.get("device_map", "auto"),
             dtype=cfg.get("dtype", "auto"),
         )
-    raise ValueError(f"Unknown LLM backend: {backend}")
+    raise ValueError(f"Unknown semantic mapper backend: {backend}")
+
+
+# Backward-compatible function name.
+def build_note_encoder(cfg: dict):
+    return build_semantic_mapper(cfg)
