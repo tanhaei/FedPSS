@@ -1,0 +1,444 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/tanhaei/fedpss/schema/bioarc_record.schema.json",
+  "title": "FedPSS BioArc Privacy-Transformed Patient Record Schema",
+  "description": "Non-identifiable analytical record schema for FedPSS. This schema is for privacy-transformed longitudinal clinical records and must not contain direct identifiers or raw free text.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "record_id",
+    "source_node",
+    "privacy",
+    "demographics",
+    "visits",
+    "clinical_events",
+    "descriptors"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "1.0.0"
+    },
+    "record_id": {
+      "type": "string",
+      "description": "Site-local pseudonymous record key. Must not be a national ID, hospital MRN, phone number, name, or direct identifier.",
+      "pattern": "^[A-Za-z0-9_\\-]{8,128}$"
+    },
+    "source_node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id",
+        "node_type"
+      ],
+      "properties": {
+        "node_id": {
+          "type": "string",
+          "description": "Pseudonymous hospital/clinic node identifier, e.g., HOSP_001."
+        },
+        "node_type": {
+          "type": "string",
+          "enum": [
+            "hospital",
+            "specialty_clinic",
+            "teaching_hospital",
+            "laboratory_network",
+            "other"
+          ]
+        },
+        "dominant_specialty": {
+          "type": "string",
+          "description": "Coarse specialty label only; avoid granular location or department identifiers."
+        },
+        "country_or_region": {
+          "type": "string",
+          "description": "Optional coarse region; do not include address-level location."
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "direct_identifiers_removed",
+        "quasi_identifiers_generalized",
+        "date_representation",
+        "key_status"
+      ],
+      "properties": {
+        "direct_identifiers_removed": {
+          "type": "boolean",
+          "const": true
+        },
+        "quasi_identifiers_generalized": {
+          "type": "boolean"
+        },
+        "date_representation": {
+          "type": "string",
+          "enum": [
+            "relative_offsets",
+            "shifted_dates",
+            "coarse_periods"
+          ]
+        },
+        "key_status": {
+          "type": "string",
+          "enum": [
+            "pseudonymized",
+            "hashed_salted_site_local",
+            "tokenized"
+          ]
+        },
+        "minimum_cohort_policy": {
+          "type": "string",
+          "description": "Optional governance rule such as k>=10."
+        },
+        "governance_notes": {
+          "type": "string",
+          "description": "Non-sensitive governance note. Do not include patient details."
+        }
+      }
+    },
+    "demographics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "age_group": {
+          "type": "string",
+          "description": "Bucketed age group, e.g., 40-44. Avoid exact date of birth."
+        },
+        "age_at_index_normalized": {
+          "type": "number"
+        },
+        "sex": {
+          "type": "string",
+          "enum": [
+            "female",
+            "male",
+            "other",
+            "unknown"
+          ]
+        },
+        "coarse_region": {
+          "type": "string",
+          "description": "Coarse location only, if approved by governance."
+        },
+        "admission_source": {
+          "type": "string"
+        }
+      }
+    },
+    "visits": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "visit_index",
+          "time_offset_days",
+          "encounter_type"
+        ],
+        "properties": {
+          "visit_index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "time_offset_days": {
+            "type": "number",
+            "description": "Relative offset from the approved clinical anchor; no raw calendar dates."
+          },
+          "anchor_type": {
+            "type": "string",
+            "enum": [
+              "first_record",
+              "diagnosis_date",
+              "procedure_date",
+              "surgery_date",
+              "other"
+            ]
+          },
+          "ward_or_service": {
+            "type": "string"
+          },
+          "physician_role": {
+            "type": "string"
+          },
+          "encounter_type": {
+            "type": "string",
+            "enum": [
+              "outpatient",
+              "inpatient",
+              "emergency",
+              "telehealth",
+              "procedure",
+              "follow_up",
+              "unknown"
+            ]
+          },
+          "measurements": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/measurement"
+            }
+          },
+          "visit_descriptors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/descriptor"
+            }
+          }
+        }
+      }
+    },
+    "clinical_events": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "diagnoses": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/coded_event"
+          }
+        },
+        "procedures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/coded_event"
+          }
+        },
+        "medications": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/medication_event"
+          }
+        },
+        "cohort_labels": {
+          "type": "array",
+          "description": "Governance-approved cohort labels for evaluation or weak supervision; no direct identifiers.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "descriptors": {
+      "type": "array",
+      "description": "Structured Persian/multilingual clinical descriptors used for semantic mapping. Do not include raw clinical notes.",
+      "items": {
+        "$ref": "#/$defs/descriptor"
+      }
+    },
+    "labels": {
+      "type": "object",
+      "description": "Optional non-identifying training/evaluation labels. Rule-derived labels and clinician-reviewed labels should be separated.",
+      "additionalProperties": false,
+      "properties": {
+        "rule_derived_positive_groups": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "clinician_review_split": {
+          "type": "string",
+          "enum": [
+            "train",
+            "validation",
+            "test",
+            "not_reviewed"
+          ]
+        },
+        "task_notes": {
+          "type": "string"
+        }
+      }
+    }
+  },
+  "$defs": {
+    "measurement": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "value_status"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Normalized measurement name or approved local descriptor."
+        },
+        "value": {
+          "type": [
+            "number",
+            "string",
+            "null"
+          ]
+        },
+        "unit": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "value_status": {
+          "type": "string",
+          "enum": [
+            "observed",
+            "imputed",
+            "missing",
+            "masked"
+          ]
+        },
+        "missingness_indicator": {
+          "type": "integer",
+          "enum": [
+            0,
+            1
+          ]
+        },
+        "normalization": {
+          "type": "string",
+          "enum": [
+            "local_zscore",
+            "federated_zscore",
+            "minmax",
+            "bucketed",
+            "none"
+          ]
+        }
+      }
+    },
+    "coded_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code_system",
+        "code",
+        "event_time_offset_days"
+      ],
+      "properties": {
+        "code_system": {
+          "type": "string",
+          "enum": [
+            "ICD-10",
+            "ICD-11",
+            "ATC",
+            "LOINC",
+            "SNOMED-CT",
+            "BioArcLocal",
+            "Other"
+          ]
+        },
+        "code": {
+          "type": "string"
+        },
+        "display": {
+          "type": "string",
+          "description": "Optional approved display label; avoid raw notes."
+        },
+        "event_time_offset_days": {
+          "type": "number"
+        },
+        "status": {
+          "type": "string",
+          "enum": [
+            "active",
+            "resolved",
+            "historical",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "medication_event": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "medication_class",
+        "event_time_offset_days"
+      ],
+      "properties": {
+        "medication_class": {
+          "type": "string",
+          "description": "ATC level or approved BioArc medication class."
+        },
+        "medication_name_normalized": {
+          "type": "string"
+        },
+        "dose_bucket": {
+          "type": "string",
+          "description": "Bucketed/normalized dose only if approved."
+        },
+        "route": {
+          "type": "string"
+        },
+        "event_time_offset_days": {
+          "type": "number"
+        },
+        "change_type": {
+          "type": "string",
+          "enum": [
+            "started",
+            "stopped",
+            "continued",
+            "changed",
+            "unknown"
+          ]
+        }
+      }
+    },
+    "descriptor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "descriptor_id",
+        "text",
+        "language",
+        "descriptor_type"
+      ],
+      "properties": {
+        "descriptor_id": {
+          "type": "string",
+          "description": "Pseudonymous descriptor key or normalized vocabulary key."
+        },
+        "text": {
+          "type": "string",
+          "description": "Structured descriptor only, e.g., Persian lab-panel name or medication class. No free-text clinical note."
+        },
+        "language": {
+          "type": "string",
+          "enum": [
+            "fa",
+            "ar",
+            "en",
+            "mixed",
+            "unknown"
+          ]
+        },
+        "descriptor_type": {
+          "type": "string",
+          "enum": [
+            "diagnosis_group",
+            "procedure",
+            "medication_class",
+            "laboratory_panel",
+            "specialty_measurement",
+            "local_synonym",
+            "cohort_descriptor",
+            "other"
+          ]
+        },
+        "normalized_target": {
+          "type": "string",
+          "description": "Optional harmonized target vocabulary item."
+        },
+        "source_vocabulary": {
+          "type": "string",
+          "description": "Optional local or standard vocabulary source."
+        }
+      }
+    }
+  }
+}
